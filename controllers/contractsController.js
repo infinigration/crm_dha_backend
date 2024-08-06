@@ -32,7 +32,20 @@ export const createContract = catchAsyncError(async (req, res, next) => {
   // const mycloud = await cloudinary.v2.uploader.upload(fileUri.content);
 
   let agent = subAgent != "" ? await SubAgent.findById(subAgent) : "";
+  const selectedLead = await Lead.findById(lead).populate("assignedTo");
+  let selectedProgram = await Program.findById(program);
+  const selectedBank = await Bank.findById(bank);
+  if (!selectedLead) {
+    return next(new ErrorHandler("Please select lead", 401));
+  }
 
+  if (!selectedProgram) {
+    return next(new ErrorHandler("Please select program", 401));
+  }
+
+  if (!selectedBank) {
+    return next(new ErrorHandler("Please select Bank", 401));
+  }
   if (!lead || !program || !installements || !installements) {
     return next(new ErrorHandler("Please enter all fields", 400));
   }
@@ -49,13 +62,13 @@ export const createContract = catchAsyncError(async (req, res, next) => {
       );
     }
   }
-  let selectedProgram = await Program.findById(program);
+
   let totalCostProgram = parseInt(
     selectedProgram.generalInformation[0].totalCost
   );
 
   let totalCostInstallements = installements.reduce((a, b) => a + b.amount, 0);
-  const selectedBank = await Bank.findById(bank);
+
 
   if (!selectedBank) {
     return next(new ErrorHandler("Invalid Bank Id", 401));
@@ -137,8 +150,6 @@ export const createContract = catchAsyncError(async (req, res, next) => {
   selectedBank.incomings.push(incoming);
   selectedBank.stats.incoming =
     parseInt(selectedBank.stats.incoming) + parseInt(totalCostProgram);
-
-  const selectedLead = await Lead.findById(lead).populate("assignedTo");
 
   if (!selectedLead) {
     return next(new ErrorHandler("Invalid Lead Id", 401));
