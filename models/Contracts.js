@@ -27,6 +27,11 @@ const schema = new mongoose.Schema({
     },
   },
 
+  discount: {
+    type: Number,
+    default: 0,
+  },
+
   subAgent: {
     id: {
       type: mongoose.Schema.Types.ObjectId,

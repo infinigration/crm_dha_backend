@@ -25,6 +25,7 @@ export const createContract = catchAsyncError(async (req, res, next) => {
     operationJunior,
     operationHead,
     commissonPercentage,
+    discount,
   } = req.body;
 
   // const fileUri = getDataUri(file);
@@ -75,6 +76,7 @@ export const createContract = catchAsyncError(async (req, res, next) => {
     program: program,
     installements: installements,
     bank: selectedBank._id,
+    discount: discount,
 
     file: {
       public_id: "temp_id",
