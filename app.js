@@ -18,6 +18,7 @@ app.use(
   cors({
     origin: [
       process.env.FRONTEND_URL,
+      "http://31.220.18.246:4173",
       "http://localhost:5173",
       "https://infinigration-crm.netlify.app/",
       "https://infinigration-crm.netlify.app",

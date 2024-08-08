@@ -15,9 +15,11 @@ import ErrorHandler from "../utils/errorHandler.js";
 export const createContract = catchAsyncError(async (req, res, next) => {
   const {
     lead,
-    bank,
     program,
+    bank,
     installements,
+    discount,
+
     subAgent,
     fees,
     currency,
@@ -25,97 +27,72 @@ export const createContract = catchAsyncError(async (req, res, next) => {
     operationJunior,
     operationHead,
     commissonPercentage,
-    discount,
   } = req.body;
 
-  // const fileUri = getDataUri(file);
-  // const mycloud = await cloudinary.v2.uploader.upload(fileUri.content);
-
-  let agent = subAgent != "" ? await SubAgent.findById(subAgent) : "";
-  const selectedLead = await Lead.findById(lead).populate("assignedTo");
-  let selectedProgram = await Program.findById(program);
-  const selectedBank = await Bank.findById(bank);
-  if (!selectedLead) {
-    return next(new ErrorHandler("Please select lead", 401));
-  }
-
-  if (!selectedProgram) {
-    return next(new ErrorHandler("Please select program", 401));
-  }
-
-  if (!selectedBank) {
-    return next(new ErrorHandler("Please select Bank", 401));
-  }
-  if (!lead || !program || !installements || !installements) {
-    return next(new ErrorHandler("Please enter all fields", 400));
-  }
-
+  // Validate 
+  
   if (!Array.isArray(installements)) {
-    return next(new ErrorHandler("Installements must be an array", 400));
+    return next(new ErrorHandler("Installments must be an array", 400));
   }
 
   for (let i of installements) {
     const { amount, stage, remarks } = i;
     if (!amount || !stage || !remarks) {
       return next(
-        new ErrorHandler("Please enter all fields for each installement", 400)
+        new ErrorHandler("Please enter all fields for each installment", 400)
       );
     }
   }
 
-  let totalCostProgram = parseInt(
+  // Fetch necessary data
+  const selectedLead = await Lead.findById(lead).populate("assignedTo");
+  const selectedProgram = await Program.findById(program);
+  const selectedBank = await Bank.findById(bank);
+  const agent = subAgent ? await SubAgent.findById(subAgent) : null;
+
+  // Validate fetched data
+  if (!selectedLead) return next(new ErrorHandler("Please select lead", 401));
+  if (!selectedProgram)
+    return next(new ErrorHandler("Please select program", 401));
+  if (!selectedBank) return next(new ErrorHandler("Please select bank", 401));
+
+  const totalCostProgram = parseInt(
     selectedProgram.generalInformation[0].totalCost
   );
+  const totalCostInstallments = installements.reduce((a, b) => a + b.amount, 0);
 
-  let totalCostInstallements = installements.reduce((a, b) => a + b.amount, 0);
+  const vendor = await Vendor.findById(selectedProgram.vendor.id);
 
-
-  if (!selectedBank) {
-    return next(new ErrorHandler("Invalid Bank Id", 401));
-  }
-
-  if (totalCostInstallements != totalCostProgram) {
-    return next(
-      new ErrorHandler(
-        `Total Cost of program is ${totalCostProgram}PKR but the sum of installements in ${totalCostInstallements}PKR`
-      )
-    );
-  }
-
-  let vendor = await Vendor.findById(selectedProgram.vendor.id);
-
+  // Create the contract
   const contract = await Contract.create({
     lead: lead,
     program: program,
     installements: installements,
     bank: selectedBank._id,
     discount: discount,
-
     file: {
       public_id: "temp_id",
       url: "temp_url",
     },
-
-    vendor:
-      vendor !== ""
-        ? {
-            id: vendor._id,
-            fees: selectedProgram.vendor.fees,
-            currency: selectedProgram.vendor.currency,
-          }
-        : null,
-    subAgent:
-      subAgent != null
-        ? {
-            id: agent._id,
-            fees: fees,
-            currency: currency,
-          }
-        : null,
+    vendor: vendor
+      ? {
+          id: vendor._id,
+          fees: selectedProgram.vendor.fees,
+          currency: selectedProgram.vendor.currency,
+        }
+      : null,
+    subAgent: agent
+      ? {
+          id: agent._id,
+          fees: fees,
+          currency: currency,
+        }
+      : null,
   });
 
-  if (vendor != null) {
-    let vendorPayment = await VendorPayment.create({
+  // Handle vendor payment
+  if (vendor) {
+    const vendorPayment = await VendorPayment.create({
       vendor: vendor._id,
       amount: selectedProgram.vendor.fees,
       currency: selectedProgram.vendor.currency,
@@ -123,10 +100,12 @@ export const createContract = catchAsyncError(async (req, res, next) => {
     });
 
     vendor.payments.push(vendorPayment._id);
+    await vendor.save();
   }
 
-  if (agent != null) {
-    let subAgentPayment = await SubAgentPayment.create({
+  // Handle sub-agent payment
+  if (agent) {
+    const subAgentPayment = await SubAgentPayment.create({
       agent: agent._id,
       amount: fees,
       currency: currency,
@@ -134,57 +113,70 @@ export const createContract = catchAsyncError(async (req, res, next) => {
     });
 
     agent.payments.push(subAgentPayment._id);
+    await agent.save();
   }
 
+  // Create client record
   await Client.create({
     lead: lead,
     contract: contract._id,
   });
 
-  let incoming = {
+  // Update bank records
+  const incoming = {
     amount: totalCostProgram,
     reason: "Invoice Payment",
     contract: contract._id,
   };
 
   selectedBank.incomings.push(incoming);
-  selectedBank.stats.incoming =
-    parseInt(selectedBank.stats.incoming) + parseInt(totalCostProgram);
+  selectedBank.stats.incoming += totalCostProgram;
+  await selectedBank.save();
 
-  if (!selectedLead) {
-    return next(new ErrorHandler("Invalid Lead Id", 401));
+  // Check if Lead is Assigned or Not
+  if (!selectedLead.assignedTo || !selectedLead.assignedTo._id) {
+    return next(
+      new ErrorHandler("Lead is not assigned to any sales person yet")
+    );
   }
 
-  const currentMonth = new Date().toISOString().substring(0, 7);
+  const employee = await User.findById(selectedLead.assignedTo._id);
 
-  let employeePayroll = await Payroll.findOne({
+  if (!employee) {
+    return next(
+      new ErrorHandler("Lead is not assigned to any sales person yet")
+    );
+  }
+
+  // Handle payroll updates
+  const currentMonth = new Date().toISOString().substring(0, 7);
+  const employeePayroll = await Payroll.findOne({
     employeeId: selectedLead.assignedTo._id,
     month: currentMonth,
   });
 
   if (!employeePayroll) {
-    return next(new ErrorHandler("Employee Payroll Not Found"));
+    return next(new ErrorHandler("Employee Payroll Not Found", 404));
   }
 
-  let employeeCommisson = installements[0].amount * 0.05;
-
+  const employeeCommission = installements[0].amount * 0.05;
   employeePayroll.clientsClosed.push({
     contractId: contract._id,
-    commisson: employeeCommisson,
+    commission: employeeCommission,
   });
+  await employeePayroll.save();
 
+  // Handle operation commission
   if (operationCommision) {
-    let junior = await User.findById(operationJunior);
-    let hod = await User.findById(operationHead);
+    const junior = await User.findById(operationJunior);
+    const hod = await User.findById(operationHead);
 
     if (!junior || !hod) {
-      return next(new ErrorHandler("Junior or Hod Not Found", 401));
+      return next(new ErrorHandler("Junior or HOD not found", 404));
     }
-  }
 
-  await selectedBank.save();
-  await employeePayroll.save();
-  await vendor.save();
+    // Additional logic for operation commission can be added here
+  }
 
   res.status(201).json({
     success: true,

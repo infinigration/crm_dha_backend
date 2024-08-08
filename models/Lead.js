@@ -22,7 +22,7 @@ const schema = new mongoose.Schema({
     passport: {
       type: String,
     },
-    
+
     city: {
       type: String,
       required: true,

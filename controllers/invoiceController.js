@@ -34,9 +34,9 @@ export const createInvoice = catchAsyncError(async (req, res, next) => {
     salesPerson: contract.lead.assignedTo,
     lead: contract.lead,
     program: contract.program,
-    totalAmount: contract.program.generalInformation[0].totalCost * 100000,
+    totalAmount: contract.program.generalInformation[0].totalCost,
     paid: 0,
-    outstanding: contract.program.generalInformation[0].totalCost * 100000,
+    outstanding: contract.program.generalInformation[0].totalCost,
   });
 
   res.status(200).json({

@@ -6,6 +6,21 @@ const schema = new mongoose.Schema({
     required: true,
   },
 
+  program: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Program",
+  },
+
+  amount: {
+    type: Number,
+    default: 0,
+  },
+
+  currency: {
+    type: String,
+    required: true,
+  },
+
   payments: [
     {
       type: mongoose.Schema.Types.ObjectId,
