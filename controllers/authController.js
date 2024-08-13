@@ -71,6 +71,7 @@ export const createUser = catchAsyncError(async (req, res, next) => {
     title,
     department,
     salary,
+    joiningDate,
     role,
     password,
   } = req.body;
@@ -90,6 +91,7 @@ export const createUser = catchAsyncError(async (req, res, next) => {
     !title ||
     !department ||
     !salary ||
+    !joiningDate ||
     !role ||
     !password
   ) {
@@ -122,6 +124,7 @@ export const createUser = catchAsyncError(async (req, res, next) => {
       title,
       department,
       salary,
+      joiningDate,
     },
     avatar: {
       public_id: "temp_id",

@@ -50,6 +50,7 @@ const schema = new mongoose.Schema({
       required: true,
     },
   },
+
   job: {
     title: {
       type: String,
@@ -63,6 +64,11 @@ const schema = new mongoose.Schema({
       type: Number,
       required: true,
       default: 0,
+    },
+
+    joiningDate: {
+      type: Date,
+      required: true,
     },
   },
   attendance: {

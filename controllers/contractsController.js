@@ -16,9 +16,9 @@ export const createContract = catchAsyncError(async (req, res, next) => {
   const {
     lead,
     program,
-    bank,
     installements,
     discount,
+    vendor,
 
     subAgent,
     fees,
@@ -29,8 +29,8 @@ export const createContract = catchAsyncError(async (req, res, next) => {
     commissonPercentage,
   } = req.body;
 
-  // Validate 
-  
+  // Validate
+
   if (!Array.isArray(installements)) {
     return next(new ErrorHandler("Installments must be an array", 400));
   }
@@ -47,28 +47,27 @@ export const createContract = catchAsyncError(async (req, res, next) => {
   // Fetch necessary data
   const selectedLead = await Lead.findById(lead).populate("assignedTo");
   const selectedProgram = await Program.findById(program);
-  const selectedBank = await Bank.findById(bank);
+  const selectedVendor = await Vendor.findById(vendor);
   const agent = subAgent ? await SubAgent.findById(subAgent) : null;
 
   // Validate fetched data
   if (!selectedLead) return next(new ErrorHandler("Please select lead", 401));
   if (!selectedProgram)
     return next(new ErrorHandler("Please select program", 401));
-  if (!selectedBank) return next(new ErrorHandler("Please select bank", 401));
+  if (!selectedVendor)
+    return next(new ErrorHandler("Please select Vendor", 401));
 
   const totalCostProgram = parseInt(
     selectedProgram.generalInformation[0].totalCost
   );
-  const totalCostInstallments = installements.reduce((a, b) => a + b.amount, 0);
 
-  const vendor = await Vendor.findById(selectedProgram.vendor.id);
+  const totalCostInstallments = installements.reduce((a, b) => a + b.amount, 0);
 
   // Create the contract
   const contract = await Contract.create({
     lead: lead,
     program: program,
     installements: installements,
-    bank: selectedBank._id,
     discount: discount,
     file: {
       public_id: "temp_id",
@@ -77,8 +76,8 @@ export const createContract = catchAsyncError(async (req, res, next) => {
     vendor: vendor
       ? {
           id: vendor._id,
-          fees: selectedProgram.vendor.fees,
-          currency: selectedProgram.vendor.currency,
+          fees: vendor.amount,
+          currency: vendor.currency,
         }
       : null,
     subAgent: agent
@@ -91,16 +90,16 @@ export const createContract = catchAsyncError(async (req, res, next) => {
   });
 
   // Handle vendor payment
-  if (vendor) {
+  if (selectedVendor) {
     const vendorPayment = await VendorPayment.create({
-      vendor: vendor._id,
-      amount: selectedProgram.vendor.fees,
-      currency: selectedProgram.vendor.currency,
+      vendor: selectedVendor._id,
+      amount: selectedVendor.amount,
+      currency: selectedVendor.currency,
       contract: contract._id,
     });
 
-    vendor.payments.push(vendorPayment._id);
-    await vendor.save();
+    selectedVendor.payments.push(vendorPayment._id);
+    await selectedVendor.save();
   }
 
   // Handle sub-agent payment
@@ -112,8 +111,8 @@ export const createContract = catchAsyncError(async (req, res, next) => {
       contract: contract._id,
     });
 
-    agent.payments.push(subAgentPayment._id);
-    await agent.save();
+    // agent.payments.push(subAgentPayment._id);
+    // await agent.save();
   }
 
   // Create client record
@@ -121,17 +120,6 @@ export const createContract = catchAsyncError(async (req, res, next) => {
     lead: lead,
     contract: contract._id,
   });
-
-  // Update bank records
-  const incoming = {
-    amount: totalCostProgram,
-    reason: "Invoice Payment",
-    contract: contract._id,
-  };
-
-  selectedBank.incomings.push(incoming);
-  selectedBank.stats.incoming += totalCostProgram;
-  await selectedBank.save();
 
   // Check if Lead is Assigned or Not
   if (!selectedLead.assignedTo || !selectedLead.assignedTo._id) {
@@ -150,6 +138,7 @@ export const createContract = catchAsyncError(async (req, res, next) => {
 
   // Handle payroll updates
   const currentMonth = new Date().toISOString().substring(0, 7);
+
   const employeePayroll = await Payroll.findOne({
     employeeId: selectedLead.assignedTo._id,
     month: currentMonth,
@@ -160,10 +149,12 @@ export const createContract = catchAsyncError(async (req, res, next) => {
   }
 
   const employeeCommission = installements[0].amount * 0.05;
+
   employeePayroll.clientsClosed.push({
     contractId: contract._id,
     commission: employeeCommission,
   });
+
   await employeePayroll.save();
 
   // Handle operation commission

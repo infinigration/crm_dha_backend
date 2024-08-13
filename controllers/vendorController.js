@@ -25,7 +25,7 @@ export const createVendor = catchAsyncError(async (req, res, next) => {
   });
 
   selectedProgram.vendors.push(vendor._id);
-  
+
   await selectedProgram.save();
   res.status(200).json({
     success: true,
@@ -34,7 +34,7 @@ export const createVendor = catchAsyncError(async (req, res, next) => {
 });
 
 export const getAllVendors = catchAsyncError(async (req, res, next) => {
-  const vendors = await Vendor.find({});
+  const vendors = await Vendor.find({}).populate("program");
 
   res.status(200).json({
     sucess: true,
