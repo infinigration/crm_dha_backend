@@ -3,12 +3,14 @@ import { authorizeAdmin, isAuthenticated } from "../middlewares/auth.js";
 import {
   assignLead,
   createLead,
+  deleteLead,
   forwardLead,
   getAllLeads,
   getLeadDetails,
   getMyLeads,
   updateClientDetails,
   updateClientProfile,
+  updateLead,
   updateStatus,
   uploadClientDocuments,
   uploadClientPorfile,
@@ -19,6 +21,8 @@ const router = express.Router();
 router.get("/leads", isAuthenticated, getAllLeads);
 router.post("/createlead", isAuthenticated, createLead);
 router.put("/updateleadstatus", isAuthenticated, authorizeAdmin, updateStatus);
+router.put("/updatelead/:id", isAuthenticated, updateLead);
+router.delete("/lead/:id", isAuthenticated, deleteLead);
 router.get("/lead/:id", isAuthenticated, authorizeAdmin, getLeadDetails);
 router.put(
   "/lead/client/:id",

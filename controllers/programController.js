@@ -15,6 +15,7 @@ export const getAllPrograms = catchAsyncError(async (req, res, next) => {
 export const createProgram = catchAsyncError(async (req, res, next) => {
   const {
     country = "Default Country",
+    title,
     duration = "Default Duration",
     totalCost = 0,
     advance = 0,

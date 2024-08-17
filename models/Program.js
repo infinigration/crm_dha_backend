@@ -8,6 +8,11 @@ const schema = new mongoose.Schema({
         required: true,
       },
 
+      title: {
+        type: String,
+        required: true,
+      },
+
       duration: {
         type: String,
         default: 0,

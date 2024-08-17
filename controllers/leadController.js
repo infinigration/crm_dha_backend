@@ -315,3 +315,37 @@ export const getMyLeads = catchAsyncError(async (req, res, next) => {
     forwarded: user.forwardedLeads,
   });
 });
+
+export const updateLead = catchAsyncError(async (req, res, next) => {
+  const { id } = req.params;
+  const { name, city, phone, campaign, source } = req.body;
+
+  const lead = await Lead.findById(id);
+  if (!lead) return next(new ErrorHandler("Lead not found", 404));
+
+  if (name) lead.client.name = name;
+  if (city) lead.client.city = city;
+  if (phone) lead.client.phone = phone;
+  if (campaign) lead.client.campaign = campaign;
+  if (source) lead.client.source = source;
+
+  await lead.save();
+
+  res.status(200).json({
+    success: true,
+    message: `Lead Updated Successfully`,
+  });
+});
+
+export const deleteLead = catchAsyncError(async (req, res, next) => {
+  const { id } = req.params;
+
+  const lead = await Lead.findById(id);
+
+  await lead.deleteOne();
+
+  res.status(200).json({
+    success: true,
+    message: `Lead Deleted Successfully`,
+  });
+});
